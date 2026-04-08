@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Horus — Editor de Copys</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #1a2456;
+      --red:    #c0392b;
+      --accent: #e67e22;
+      --bg:     #f0f2f8;
+      --white:  #ffffff;
+      --gray:   #8892a4;
+      --border: #dde1ec;
+      --green:  #27ae60;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: #2c3e50;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      background: var(--navy);
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 24px;
+      height: 60px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+    .topbar .logo { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
+    .topbar .logo span { color: var(--accent); }
+    .topbar .meta { font-size: 13px; color: rgba(255,255,255,.55); margin-left: 4px; }
+    .topbar .spacer { flex: 1; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 8px 16px; border-radius: 8px; font-size: 13px;
+      font-weight: 600; cursor: pointer; border: none;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:hover  { opacity: .88; }
+    .btn:active { transform: scale(.97); }
+    .btn-outline {
+      background: rgba(255,255,255,.12);
+      color: white;
+      border: 1px solid rgba(255,255,255,.25);
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-ai      { background: #6c3fc5; color: white; }
+    .btn-copy    { background: var(--navy); color: white; font-size: 12px; padding: 6px 12px; }
+    .btn-green   { background: var(--green); color: white; }
+
+    /* ── MAIN LAYOUT ── */
+    .layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 300px;
+      background: var(--white);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--gray);
+    }
+    .sidebar-list { flex: 1; overflow-y: auto; }
+    .sidebar-item {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .sidebar-item:hover    { background: #f5f7fc; }
+    .sidebar-item.active   { background: #eef1fb; border-left: 3px solid var(--navy); }
+    .sidebar-item .sname   { font-size: 13px; font-weight: 600; color: var(--navy); line-height: 1.3; }
+    .sidebar-item .smeta   { font-size: 11px; color: var(--gray); margin-top: 4px; }
+    .sidebar-item .sbadge  {
+      display: inline-block; font-size: 10px; padding: 2px 7px;
+      border-radius: 99px; margin-top: 6px; font-weight: 600;
+    }
+    .badge-ok       { background: #e8f8ef; color: var(--green); }
+    .badge-template { background: #fef3e2; color: var(--accent); }
+    .badge-empty    { background: #fce8e6; color: var(--red); }
+
+    /* ── MAIN CONTENT ── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: var(--gray);
+      padding: 40px;
+      text-align: center;
+    }
+    .empty-state .icon { font-size: 56px; }
+    .empty-state h2    { font-size: 20px; color: var(--navy); }
+    .empty-state p     { font-size: 14px; max-width: 400px; line-height: 1.6; }
+
+    /* ── EDITOR ── */
+    .editor { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .editor.visible { display: flex; }
+
+    .editor-header {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .editor-header .info { flex: 1; }
+    .editor-header .title { font-size: 17px; font-weight: 700; color: var(--navy); }
+    .editor-header .chips { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--bg); border: 1px solid var(--border);
+      padding: 4px 10px; border-radius: 99px; font-size: 12px; color: #555;
+    }
+    .editor-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
+    /* AI KEY INPUT */
+    .ai-section {
+      background: #faf5ff;
+      border-bottom: 1px solid #e8d8fc;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .ai-section label { color: #6c3fc5; font-weight: 600; white-space: nowrap; }
+    .ai-section input {
+      flex: 1; max-width: 360px;
+      padding: 6px 12px; border-radius: 8px;
+      border: 1px solid #d8c2f7; font-size: 13px;
+      background: white; color: #333;
+    }
+    .ai-section .hint { color: #9b7fd4; font-size: 12px; }
+
+    .textarea-wrap { flex: 1; padding: 24px; overflow-y: auto; }
+    textarea {
+      width: 100%; height: 100%; min-height: 300px;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; font-size: 15px; line-height: 1.7;
+      resize: none; font-family: inherit; color: #2c3e50;
+      background: white;
+      transition: border-color .15s;
+    }
+    textarea:focus { outline: none; border-color: var(--navy); }
+
+    .editor-footer {
+      background: white;
+      border-top: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .char-count { font-size: 12px; color: var(--gray); margin-right: auto; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: var(--navy); color: white;
+      padding: 10px 20px; border-radius: 99px; font-size: 13px; font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0,0,0,.2);
+      transition: transform .3s cubic-bezier(.175,.885,.32,1.275);
+      pointer-events: none; z-index: 999;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── FILE INPUT ── */
+    #fileInput { display: none; }
+
+    /* ── EXPORT MODAL ── */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: white; border-radius: 16px;
+      padding: 32px; width: 560px; max-width: 95vw;
+      box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    }
+    .modal h3   { font-size: 18px; color: var(--navy); margin-bottom: 8px; }
+    .modal p    { font-size: 13px; color: var(--gray); margin-bottom: 20px; }
+    .modal pre  {
+      background: var(--bg); border-radius: 8px;
+      padding: 16px; font-size: 12px; white-space: pre-wrap;
+      max-height: 300px; overflow-y: auto;
+      border: 1px solid var(--border);
+    }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">🟠 <span>Horus</span> Capacitações</div>
+  <div class="meta" id="topMeta">Nenhum arquivo carregado</div>
+  <div class="spacer"></div>
+  <button class="btn btn-outline" onclick="document.getElementById('fileInput').click()">
+    📂 Carregar JSON
+  </button>
+  <button class="btn btn-green" onclick="exportarTudo()">
+    ⬇️ Exportar Tudo
+  </button>
+  <input type="file" id="fileInput" accept=".json" onchange="carregarJSON(event)" />
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-header">Capacitações</div>
+    <div class="sidebar-list" id="sidebarList">
+      <div style="padding:24px 16px; color:#aaa; font-size:13px;">
+        Carregue um arquivo JSON para começar.
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState">
+      <div class="icon">✍️</div>
+      <h2>Editor de Copys</h2>
+      <p>Carregue o arquivo <strong>capacitacoes_[mes].json</strong> gerado pelo script
+         <code>criar_copys.py</code> para começar a visualizar e editar as legendas.</p>
+      <button class="btn btn-primary" style="margin-top:8px"
+              onclick="document.getElementById('fileInput').click()">
+        📂 Carregar arquivo JSON
+      </button>
+    </div>
+
+    <!-- Editor -->
+    <div class="editor" id="editor">
+
+      <div class="editor-header">
+        <div class="info">
+          <div class="title" id="edTitle">—</div>
+          <div class="chips" id="edChips"></div>
+        </div>
+        <div class="editor-actions">
+          <button class="btn btn-copy" onclick="copiarTexto()">📋 Copiar</button>
+          <button class="btn btn-ai"   onclick="gerarComIA()">✨ Gerar com IA</button>
+        </div>
+      </div>
+
+      <div class="ai-section">
+        <label>🔑 Chave API Claude:</label>
+        <input type="password" id="apiKey"
+               placeholder="sk-ant-... (necessária para gerar com IA)" />
+        <span class="hint">Obtenha em console.anthropic.com</span>
+      </div>
+
+      <div class="textarea-wrap">
+        <textarea id="copyTextarea"
+                  placeholder="A legenda aparece aqui. Você pode editar livremente."
+                  oninput="onEdit()"></textarea>
+      </div>
+
+      <div class="editor-footer">
+        <span class="char-count" id="charCount">0 caracteres</span>
+        <button class="btn btn-outline" style="color:var(--navy); border-color:var(--border)"
+                onclick="resetarCopy()">↩ Resetar</button>
+        <button class="btn btn-primary" onclick="salvarCopy()">💾 Salvar edição</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-backdrop" id="exportModal">
+  <div class="modal">
+    <h3>📥 Exportar Todas as Copies</h3>
+    <p>Copie o conteúdo abaixo ou baixe como arquivo .txt</p>
+    <pre id="exportContent"></pre>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="color:#555; border-color:#ccc"
+              onclick="fecharModal()">Fechar</button>
+      <button class="btn btn-copy" onclick="copiarExport()">📋 Copiar tudo</button>
+      <button class="btn btn-primary" onclick="baixarTxt()">⬇️ Baixar .txt</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+let dados = null;          // JSON carregado
+let atualIdx = -1;         // índice da capacitação ativa
+let copysEditadas = {};    // edições do usuário { nome: texto }
+let copysOriginais = {};   // backup para resetar
+
+// ── LOAD JSON ──
+function carregarJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      dados = JSON.parse(e.target.result);
+      inicializar();
+    } catch {
+      toast("❌ Arquivo JSON inválido");
+    }
+  };
+  reader.readAsText(file);
+}
+
+function inicializar() {
+  const caps = dados.capacitacoes || [];
+  copysEditadas  = {};
+  copysOriginais = {};
+  caps.forEach(c => {
+    copysEditadas[c.nome]  = c.copy || "";
+    copysOriginais[c.nome] = c.copy || "";
+  });
+
+  document.getElementById("topMeta").textContent =
+    `${dados.mes?.charAt(0).toUpperCase() + dados.mes?.slice(1)} · ${caps.length} capacitações · Gerado em ${dados.gerado_em} via ${dados.modo}`;
+
+  renderSidebar();
+  if (caps.length) abrirItem(0);
+}
+
+// ── SIDEBAR ──
+function renderSidebar() {
+  const caps = dados?.capacitacoes || [];
+  const list = document.getElementById("sidebarList");
+  list.innerHTML = caps.map((c, i) => {
+    const texto = copysEditadas[c.nome] || "";
+    const badge = texto
+      ? (copysOriginais[c.nome] !== copysEditadas[c.nome]
+          ? `<span class="sbadge badge-ok">✏️ Editado</span>`
+          : `<span class="sbadge badge-template">✅ Gerado</span>`)
+      : `<span class="sbadge badge-empty">⚠️ Vazio</span>`;
+    return `
+      <div class="sidebar-item ${i === atualIdx ? 'active' : ''}" onclick="abrirItem(${i})">
+        <div class="sname">${c.nome}</div>
+        <div class="smeta">📅 ${c.data} · 📍 ${c.local}</div>
+        ${badge}
+      </div>`;
+  }).join("");
+}
+
+// ── EDITOR ──
+function abrirItem(idx) {
+  if (!dados) return;
+  atualIdx = idx;
+  const cap = dados.capacitacoes[idx];
+
+  document.getElementById("emptyState").style.display = "none";
+  const editor = document.getElementById("editor");
+  editor.classList.add("visible");
+
+  document.getElementById("edTitle").textContent = cap.nome;
+  document.getElementById("edChips").innerHTML =
+    `<span class="chip">📅 ${cap.data}</span>
+     <span class="chip">📍 ${cap.local}</span>
+     <a href="${cap.link}" target="_blank" class="chip" style="text-decoration:none;color:inherit">🔗 Ver página</a>`;
+
+  const textarea = document.getElementById("copyTextarea");
+  textarea.value = copysEditadas[cap.nome] || "";
+  atualizarContador();
+  renderSidebar();
+}
+
+function onEdit() {
+  if (atualIdx < 0) return;
+  const cap = dados.capacitacoes[atualIdx];
+  copysEditadas[cap.nome] = document.getElementById("copyTextarea").value;
+  atualizarContador();
+}
+
+function atualizarContador() {
+  const len = document.getElementById("copyTextarea").value.length;
+  document.getElementById("charCount").textContent = `${len} caractere${len !== 1 ? "s" : ""}`;
+}
+
+function salvarCopy() {
+  if (atualIdx < 0) return;
+  const cap = dados.capacitacoes[atualIdx];
+  copysEditadas[cap.nome] = document.getElementById("copyTextarea").value;
+  renderSidebar();
+  toast("✅ Legenda salva!");
+}
+
+function resetarCopy() {
+  if (atualIdx < 0) return;
+  const cap = dados.capacitacoes[atualIdx];
+  copysEditadas[cap.nome] = copysOriginais[cap.nome];
+  document.getElementById("copyTextarea").value = copysOriginais[cap.nome];
+  atualizarContador();
+  renderSidebar();
+  toast("↩ Legenda resetada para o original");
+}
+
+function copiarTexto() {
+  const text = document.getElementById("copyTextarea").value;
+  navigator.clipboard.writeText(text).then(() => toast("📋 Copiado!"));
+}
+
+// ── IA VIA BROWSER (Anthropic API) ──
+async function gerarComIA() {
+  if (atualIdx < 0) return;
+  const apiKey = document.getElementById("apiKey").value.trim();
+  if (!apiKey) { toast("❌ Insira a chave da API Claude"); return; }
+
+  const cap = dados.capacitacoes[atualIdx];
+  const btn = document.querySelector(".btn-ai");
+  btn.textContent = "⏳ Gerando...";
+  btn.disabled = true;
+
+  const prompt = `Você é especialista em marketing digital para capacitações profissionais do setor público (SUAS).
+
+Com base nas informações abaixo, escreva uma legenda completa e persuasiva para anúncio no Instagram/Facebook:
+
+CAPACITAÇÃO: ${cap.nome}
+DATA: ${cap.data}
+LOCAL: ${cap.local}
+
+Estruture a legenda assim:
+1. Abertura impactante (1-2 linhas)
+2. O que será aprendido e para quem é indicado (3-4 linhas)
+3. Data e local com emojis 📅 e 📍
+4. Call to action (WhatsApp / garantir vaga)
+5. 6-8 hashtags relevantes
+
+Tom: profissional, motivador. Público: trabalhadores e gestores do SUAS.
+Escreva apenas a legenda, sem títulos ou comentários extras.`;
+
+  try {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-allow-browser": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+    const texto = data.content[0].text.trim();
+    copysEditadas[cap.nome] = texto;
+    document.getElementById("copyTextarea").value = texto;
+    atualizarContador();
+    renderSidebar();
+    toast("✨ Copy gerada com IA!");
+  } catch (err) {
+    toast(`❌ Erro: ${err.message}`);
+  } finally {
+    btn.textContent = "✨ Gerar com IA";
+    btn.disabled = false;
+  }
+}
+
+// ── EXPORT ──
+function exportarTudo() {
+  if (!dados) { toast("Carregue um JSON primeiro"); return; }
+  const caps = dados.capacitacoes || [];
+  const linhas = caps.map(c => {
+    const copy = copysEditadas[c.nome] || c.copy || "(sem legenda)";
+    return `${"=".repeat(55)}\n${c.nome}\n📅 ${c.data} | 📍 ${c.local}\n${"=".repeat(55)}\n\n${copy}`;
+  }).join("\n\n\n");
+  document.getElementById("exportContent").textContent = linhas;
+  document.getElementById("exportModal").classList.add("open");
+}
+
+function fecharModal() {
+  document.getElementById("exportModal").classList.remove("open");
+}
+
+function copiarExport() {
+  const text = document.getElementById("exportContent").textContent;
+  navigator.clipboard.writeText(text).then(() => toast("📋 Tudo copiado!"));
+}
+
+function baixarTxt() {
+  const text = document.getElementById("exportContent").textContent;
+  const mes = dados?.mes || "copys";
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `legendas_${mes}.txt`;
+  a.click();
+}
+
+// ── TOAST ──
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+// Fechar modal clicando fora
+document.getElementById("exportModal").addEventListener("click", function(e) {
+  if (e.target === this) fecharModal();
+});
+</script>
+</body>
+</html>
