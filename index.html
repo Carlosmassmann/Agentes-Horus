@@ -154,24 +154,6 @@
     }
     .editor-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 
-    /* AI KEY INPUT */
-    .ai-section {
-      background: #faf5ff;
-      border-bottom: 1px solid #e8d8fc;
-      padding: 10px 24px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 13px;
-    }
-    .ai-section label { color: #6c3fc5; font-weight: 600; white-space: nowrap; }
-    .ai-section input {
-      flex: 1; max-width: 360px;
-      padding: 6px 12px; border-radius: 8px;
-      border: 1px solid #d8c2f7; font-size: 13px;
-      background: white; color: #333;
-    }
-    .ai-section .hint { color: #9b7fd4; font-size: 12px; }
 
     .textarea-wrap { flex: 1; padding: 24px; overflow-y: auto; }
     textarea {
@@ -287,13 +269,6 @@
           <button class="btn btn-copy" onclick="copiarTexto()">📋 Copiar</button>
           <button class="btn btn-ai"   onclick="gerarComIA()">✨ Gerar com IA</button>
         </div>
-      </div>
-
-      <div class="ai-section">
-        <label>🔑 Chave API Claude:</label>
-        <input type="password" id="apiKey"
-               placeholder="sk-ant-... (necessária para gerar com IA)" />
-        <span class="hint">Obtenha em console.anthropic.com</span>
       </div>
 
       <div class="textarea-wrap">
@@ -447,55 +422,25 @@ function copiarTexto() {
   navigator.clipboard.writeText(text).then(() => toast("📋 Copiado!"));
 }
 
-// ── IA VIA BROWSER (Anthropic API) ──
+// ── IA VIA SERVIDOR LOCAL ──
 async function gerarComIA() {
   if (atualIdx < 0) return;
-  const apiKey = document.getElementById("apiKey").value.trim();
-  if (!apiKey) { toast("❌ Insira a chave da API Claude"); return; }
 
   const cap = dados.capacitacoes[atualIdx];
   const btn = document.querySelector(".btn-ai");
   btn.textContent = "⏳ Gerando...";
   btn.disabled = true;
 
-  const prompt = `Você é especialista em marketing digital para capacitações profissionais do setor público (SUAS).
-
-Com base nas informações abaixo, escreva uma legenda completa e persuasiva para anúncio no Instagram/Facebook:
-
-CAPACITAÇÃO: ${cap.nome}
-DATA: ${cap.data}
-LOCAL: ${cap.local}
-
-Estruture a legenda assim:
-1. Abertura impactante (1-2 linhas)
-2. O que será aprendido e para quem é indicado (3-4 linhas)
-3. Data e local com emojis 📅 e 📍
-4. Call to action (WhatsApp / garantir vaga)
-5. 6-8 hashtags relevantes
-
-Tom: profissional, motivador. Público: trabalhadores e gestores do SUAS.
-Escreva apenas a legenda, sem títulos ou comentários extras.`;
-
   try {
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    const resp = await fetch("/api/gerar-copy", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-allow-browser": "true",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
-        messages: [{ role: "user", content: prompt }],
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: cap.nome, data: cap.data, local: cap.local, link: cap.link }),
     });
     const data = await resp.json();
-    if (data.error) throw new Error(data.error.message);
-    const texto = data.content[0].text.trim();
-    copysEditadas[cap.nome] = texto;
-    document.getElementById("copyTextarea").value = texto;
+    if (data.erro) throw new Error(data.erro);
+    copysEditadas[cap.nome] = data.texto;
+    document.getElementById("copyTextarea").value = data.texto;
     atualizarContador();
     renderSidebar();
     toast("✨ Copy gerada com IA!");
